@@ -54,7 +54,7 @@ function Upload() {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('topic', topic);
-    formData.append('user_id', user.uid);
+    formData.append('user_id', user.email);
 
     try {
       const response = await fetch('http://localhost:8000/api/upload', {
@@ -86,7 +86,7 @@ function Upload() {
         },
         body: JSON.stringify({
           topic,
-          user_id: user.uid,
+          user_id: user.email,
           qa_pairs: qaData
         }),
       });

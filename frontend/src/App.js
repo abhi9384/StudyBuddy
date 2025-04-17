@@ -8,6 +8,9 @@ import Upload from './components/Upload';
 import ViewQA from './components/ViewQA';
 import Login from './components/Login';
 import TakeQuiz from './components/TakeQuiz';
+import TakeExam from './components/TakeExam';
+import YoutubeVideos from './components/YoutubeVideos';
+import AnswerQuestion from './components/AnswerQuestion';
 import { AuthProvider } from './contexts/AuthContext';
 
 const theme = createTheme({
@@ -50,6 +53,9 @@ function App() {
               <Route path="/view-qa" element={<ViewQA />} />
               <Route path="/login" element={<Login />} />
               <Route path="/take-quiz" element={<TakeQuiz />} />
+              <Route path="/take-exam" element={<TakeExam />} />
+              <Route path="/youtube-videos" element={<YoutubeVideos />} />
+              <Route path="/answer-question" element={<AnswerQuestion />} />
             </Routes>
           </div>
         </Router>

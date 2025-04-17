@@ -157,11 +157,14 @@ async def save_qa(
         print(f"Error saving to Supabase: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/topics")
-async def get_topics():
+@app.get("/api/topics/{user_id}")
+async def get_topics(user_id: str):
     try:
-        logfire.info("----get_topics called----")
-        result = supabase.table(os.getenv("SUPABASE_STUDYMATE_TABLE")).select("topic").execute()
+        logfire.info(f"----get_topics called for {user_id}----")
+        result = supabase.table(os.getenv("SUPABASE_STUDYMATE_TABLE"))\
+            .select("topic")\
+            .eq("user_id", user_id)\
+            .execute()
         logfire.info(f"DB Response: {result}")
 
         if hasattr(result, 'error') and result.error is not None:
@@ -174,12 +177,13 @@ async def get_topics():
         logfire.error(f"Failed to get topics from Supabase DB. Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/qa/{topic}")
-async def get_qa_by_topic(topic: str):
+@app.get("/api/qa/{topic}/{user_id}")
+async def get_qa_by_topic(topic: str, user_id: str):
     try:
         result = supabase.table(os.getenv("SUPABASE_STUDYMATE_TABLE"))\
             .select("*")\
             .eq("topic", topic)\
+            .eq("user_id", user_id)\
             .order("question_num")\
             .execute()
             
@@ -266,5 +270,171 @@ Make sure your response is valid JSON."""
         response = json.loads(chat_completion.choices[0].message.content)
         return response
 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/generate-exam")
+async def generate_exam(text: str = Form(...)):
+    try:
+        prompt = f"""Based on the following text, generate a sample exam paper with the following types of questions:
+        1. 5 Fill in the blanks
+        2. 5 True or False statements
+        3. 5 Short Questions (to be answered in one sentence)
+        4. 3 Long Questions (Essay type questions)
+
+        Please format the output as follows:
+        FILL IN THE BLANKS:
+        1. [question]
+        ...
+
+        TRUE OR FALSE:
+        1. [statement]
+        ...
+
+        SHORT QUESTIONS:
+        1. [question]
+        ...
+
+        LONG QUESTIONS:
+        1. [question]
+        ...
+
+        ---ANSWERS---
+        FILL IN THE BLANKS:
+        1. [answer]
+        ...
+
+        TRUE OR FALSE:
+        1. [True/False]
+        ...
+
+        SHORT QUESTIONS:
+        1. [answer]
+        ...
+
+        LONG QUESTIONS:
+        1. [detailed answer]
+        ...
+
+        Text: {text[:6000]}"""
+
+        chat_completion = groq_client.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert educator who creates comprehensive exam papers."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            model="llama3-70b-8192",
+            temperature=0.7,
+            max_tokens=4000,
+        )
+        
+        exam_content = chat_completion.choices[0].message.content
+        # Split into questions and answers
+        parts = exam_content.split("---ANSWERS---")
+        return {
+            "questions": parts[0].strip(),
+            "answers": parts[1].strip() if len(parts) > 1 else "Answers not available"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/get-youtube-videos")
+async def get_youtube_videos(text: str = Form(...)):
+    try:
+        # First, generate topics using Groq
+        prompt = f"""Based on the following text, generate exactly two main topics that would be most beneficial for students to watch educational videos about. Format your response as:
+        Topic 1: [topic]
+        Topic 2: [topic]
+
+        Text: {text[:3000]}"""
+
+        chat_completion = groq_client.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert educator who can identify key learning topics."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            model="llama3-70b-8192",
+            temperature=0.7,
+            max_tokens=200,
+        )
+        
+        topics_text = chat_completion.choices[0].message.content
+        topics = [line.split(": ")[1].strip() for line in topics_text.split("\n") if ": " in line]
+
+        # For each topic, search YouTube using YouTube Data API
+        youtube_api_key = os.getenv("YOUTUBE_API_KEY")
+        if not youtube_api_key:
+            raise HTTPException(status_code=500, detail="YouTube API key not configured")
+
+        import googleapiclient.discovery
+        youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=youtube_api_key)
+
+        all_videos = []
+        for topic in topics:
+            request = youtube.search().list(
+                part="snippet",
+                maxResults=5,
+                q=f"{topic} educational",
+                type="video"
+            )
+            response = request.execute()
+            
+            videos = [{
+                "title": item["snippet"]["title"],
+                "url": f"https://www.youtube.com/watch?v={item['id']['videoId']}",
+                "thumbnail": item["snippet"]["thumbnails"]["default"]["url"],
+                "description": item["snippet"]["description"]
+            } for item in response["items"]]
+            
+            all_videos.extend(videos)
+
+        return {
+            "topics": topics,
+            "videos": all_videos
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/answer-question")
+async def answer_question(text: str = Form(...), question: str = Form(...)):
+    try:
+        prompt = f"""Based on the following text, answer the question. Only use information from the provided text. If the answer cannot be found in the text, say so.
+
+        Text: {text[:6000]}
+
+        Question: {question}
+
+        Answer:"""
+
+        chat_completion = groq_client.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert educator who provides accurate and concise answers based solely on the given text."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            model="llama3-70b-8192",
+            temperature=0.7,
+            max_tokens=1000,
+        )
+        
+        answer = chat_completion.choices[0].message.content
+        return {"answer": answer.strip()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

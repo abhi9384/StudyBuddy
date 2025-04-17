@@ -62,6 +62,24 @@ function Navbar() {
           >
             Take a Quiz
           </Button>
+          <Button 
+            color="primary" 
+            onClick={() => navigate('/take-exam')}
+          >
+            Take an Exam
+          </Button>
+          <Button 
+            color="primary" 
+            onClick={() => navigate('/youtube-videos')}
+          >
+            Get Videos
+          </Button>
+          <Button 
+            color="primary" 
+            onClick={() => navigate('/answer-question')}
+          >
+            Answer Question
+          </Button>
           {user ? (
             <Button 
               color="secondary" 

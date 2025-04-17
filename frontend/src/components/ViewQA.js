@@ -11,20 +11,24 @@ import {
   CircularProgress
 } from '@mui/material';
 import { toast } from 'react-toastify';
+import { useAuth } from '../contexts/AuthContext';
 
 function ViewQA() {
   const [topics, setTopics] = useState([]);
   const [selectedTopic, setSelectedTopic] = useState('');
   const [qaData, setQaData] = useState([]);
   const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
-    fetchTopics();
-  }, []);
+    if (user) {
+      fetchTopics();
+    }
+  }, [user]);
 
   const fetchTopics = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/topics');
+      const response = await fetch(`http://localhost:8000/api/topics/${encodeURIComponent(user.email)}`);
       if (!response.ok) throw new Error('Failed to fetch topics');
       const data = await response.json();
       setTopics(data.topics);
@@ -44,7 +48,7 @@ function ViewQA() {
 
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:8000/api/qa/${topic}`);
+      const response = await fetch(`http://localhost:8000/api/qa/${topic}/${encodeURIComponent(user.email)}`);
       if (!response.ok) throw new Error('Failed to fetch Q&A');
       const data = await response.json();
       setQaData(data.qa_pairs);
@@ -55,6 +59,16 @@ function ViewQA() {
       setLoading(false);
     }
   };
+
+  if (!user) {
+    return (
+      <Container maxWidth="md" sx={{ py: 4 }}>
+        <Typography variant="h6" sx={{ textAlign: 'center', color: '#6C63FF' }}>
+          Please log in to view your Q&A content.
+        </Typography>
+      </Container>
+    );
+  }
 
   return (
     <Container maxWidth="md" sx={{ py: 4 }}>
@@ -105,27 +119,26 @@ function ViewQA() {
         ) : (
           <Box>
             {qaData.map((qa, index) => (
-              <Box 
-                key={index} 
-                sx={{ 
-                  mb: 4,
-                  p: 3,
-                  backgroundColor: 'rgba(108, 99, 255, 0.04)',
-                  borderRadius: 2
-                }}
-              >
+              <Box key={index} sx={{ mb: 4 }}>
                 <Typography 
-                  variant="subtitle1" 
+                  variant="h6" 
                   sx={{ 
-                    fontWeight: 'bold',
                     color: '#6C63FF',
+                    fontWeight: 'bold',
                     mb: 1
                   }}
                 >
                   Q{index + 1}: {qa.question}
                 </Typography>
-                <Typography sx={{ color: '#333' }}>
-                  A: {qa.answer}
+                <Typography 
+                  variant="body1" 
+                  sx={{ 
+                    pl: 3,
+                    borderLeft: '3px solid #2EC4B6',
+                    ml: 1
+                  }}
+                >
+                  {qa.answer}
                 </Typography>
               </Box>
             ))}
